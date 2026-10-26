@@ -5,19 +5,32 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Unzip
+      - name: Setup project
         run: |
-          unzip -o "*.zip" -d . || true
-          if [ -d "BaharAI_Xcode_Project" ]; then mv BaharAI_Xcode_Project/* .; fi
-      - name: Build IPA
+          ls -la
+          unzip -o "*.zip" -d . 2>/dev/null || true
+          if [ -d "BaharAI_Xcode_Project" ]; then
+            cp -R BaharAI_Xcode_Project/* . 2>/dev/null || true
+            cp -R BaharAI_Xcode_Project/.* . 2>/dev/null || true
+          fi
+          find . -maxdepth 4 -name "*.xcodeproj" | head -5
+          ls -la
+      - name: Build IPA no signing
         run: |
-          PROJ=$(find . -name "*.xcodeproj" | head -1)
-          xcodebuild -project "$PROJ" -scheme BaharAI -configuration Release -archivePath BaharAI.xcarchive archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          set -e
+          PROJ=$(find . -maxdepth 4 -name "*.xcodeproj" | head -1)
+          echo "Building $PROJ"
+          xcodebuild -list -project "$PROJ" || true
+          xcodebuild -project "$PROJ" -scheme BaharAI -configuration Release -sdk iphoneos -derivedDataPath ./DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          APP=$(find ./DerivedData -name "*.app" | head -1)
+          echo "App found: $APP"
           mkdir -p Payload
-          cp -R BaharAI.xcarchive/Products/Applications/BaharAI.app Payload/
-          zip -r BaharAI-AB-v1.1.0.ipa Payload
-      - name: Upload
+          cp -R "$APP" Payload/
+          zip -r BaharAI-AB-v1.1.0-UNSIGNED.ipa Payload
+          ls -lh *.ipa
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: BaharAI-IPA
-          path: BaharAI-AB-v1.1.0.ipa
+          name: BaharAI-IPA-v1.1.0-AB
+          path: BaharAI-AB-v1.1.0-UNSIGNED.ipa
+          retention-days: 30

@@ -1,0 +1,41 @@
+name: Build Bahar AI IPA
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix and Extract project
+        run: |
+          ls -la
+          find . -type f | grep -i BaharAI | head -20
+          for f in $(find . -maxdepth 2 -type f | grep -i BaharAI); do
+            echo "Found: $f"
+            if [[ "$f" == *"_x5f_"* ]]; then mv "$f" ./project.zip; fi
+            if [[ "$f" == *.zip ]]; then cp "$f" ./project.zip; fi
+          done
+          if [ -f "./project.zip" ]; then
+            unzip -o ./project.zip -d ./extracted
+            if [ -d "./extracted/BaharAI_Xcode_Project" ]; then
+              cp -R ./extracted/BaharAI_Xcode_Project/* ./
+            else
+              XPROJ=$(find ./extracted -name "*.xcodeproj" | head -1)
+              DIR=$(dirname "$XPROJ")
+              cp -R "$DIR"/* ./ 2>/dev/null || cp -R ./extracted/* ./ 
+            fi
+          fi
+          ls -la
+          find . -maxdepth 3 -name "*.xcodeproj"
+      - name: Build IPA unsigned
+        run: |
+          PROJ=$(find . -maxdepth 3 -name "*.xcodeproj" | head -1)
+          xcodebuild -project "$PROJ" -scheme BaharAI -configuration Release -sdk iphoneos -derivedDataPath ./DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          APP=$(find ./DerivedData -name "*.app" | head -1)
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -r BaharAI-AB-v1.1.0-UNSIGNED.ipa Payload
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: BaharAI-IPA-v1.1.0-AB
+          path: BaharAI-AB-v1.1.0-UNSIGNED.ipa
